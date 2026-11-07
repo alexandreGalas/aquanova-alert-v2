@@ -1,0 +1,52 @@
+name: Surveillance des séances
+
+on:
+  schedule:
+    - cron: "7,37 * * * *"   # toutes les 30 minutes
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "test = envoyer tout de suite un mail récapitulatif"
+        type: choice
+        options: [test, normal]
+        default: test
+
+permissions:
+  contents: write
+
+concurrency:
+  group: surveillance
+  cancel-in-progress: false
+
+jobs:
+  verifier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Vérifier les séances
+        run: python monitor.py
+        env:
+          MODE: ${{ inputs.mode || 'normal' }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          MAIL_TO: ${{ secrets.MAIL_TO }}
+          PERIODES: ${{ vars.PERIODES }}
+
+      - name: Mémoriser les séances déjà vues
+        run: |
+          if [ -n "$(git status --porcelain etat.json)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add etat.json
+            git commit -m "Mise à jour des séances vues"
+            git push
+          fi
