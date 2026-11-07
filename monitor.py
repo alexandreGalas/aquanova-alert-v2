@@ -71,6 +71,22 @@ def telecharger(url: str) -> str:
     return reponse.text
 
 
+def lire_page(url: str, essais: int = 3) -> dict:
+    """Télécharge et analyse une page, en réessayant si le site renvoie une page inattendue."""
+    for essai in range(1, essais + 1):
+        html = telecharger(url)
+        try:
+            return analyser_page(html)
+        except ErreurStructure as e:
+            titre = BeautifulSoup(html, "html.parser").title
+            apercu = " ".join(BeautifulSoup(html, "html.parser").get_text(" ", strip=True).split())[:200]
+            print(f"Page inattendue (essai {essai}/{essais}) {url} : {len(html)} caractères, "
+                  f"titre « {titre.get_text(strip=True) if titre else '-'} », début : {apercu}")
+            if essai == essais:
+                raise e
+            time.sleep(10 * essai)
+
+
 def analyser_page(html: str) -> dict:
     """Renvoie l'intitulé de la semaine, son nombre de séances et les autres semaines citées."""
     soup = BeautifulSoup(html, "html.parser")
@@ -108,7 +124,7 @@ def collecter(periodes_config: list[str]) -> list[dict]:
         if pages:
             time.sleep(PAUSE_ENTRE_PAGES)
         url = url_periode(periode)
-        page = analyser_page(telecharger(url))
+        page = lire_page(url)
         page["url"] = url
         pages.append(page)
         a_lire += sorted(p for p in page["periodes"] if p not in vues)
@@ -139,8 +155,10 @@ def envoyer_mail(sujet: str, texte: str, html: str, lien: str) -> None:
     if not destinataires():
         raise SystemExit("Secret MAIL_TO manquant : impossible d'envoyer l'alerte.")
     if os.environ.get("SMTP_USER") and os.environ.get("SMTP_PASSWORD"):
+        print("Envoi via Gmail…")
         envoyer_par_smtp(sujet, texte, html)
     else:
+        print("Secrets SMTP_USER / SMTP_PASSWORD absents : envoi via ntfy.sh…")
         envoyer_par_ntfy(sujet, texte, lien)
 
 
@@ -196,6 +214,8 @@ def main() -> int:
     except (requests.RequestException, ErreurStructure) as e:
         etat["echecs"] = etat.get("echecs", 0) + 1
         print(f"Échec de la vérification ({etat['echecs']} d'affilée) : {e}")
+        if mode == "test":
+            raise
         if etat["echecs"] >= ECHECS_AVANT_ALERTE and not etat.get("alerte_erreur"):
             mail_simple("⚠️ Alerte Aquanova en panne",
                         [(f"La surveillance ne fonctionne plus depuis quelques heures ({e}).", PAGE_RESERVER)])
