@@ -2,52 +2,42 @@
 
 Ce petit programme vérifie toutes les 30 minutes les pages de réservation
 d'Aquanova America. Dès que le planning d'une nouvelle semaine est mis en ligne,
-il envoie un mail court : « Nouveau planning disponible », avec le lien de la semaine.
+il envoie une **notification sur le téléphone** : « Nouveau planning disponible ».
+Toucher la notification ouvre la page de réservation de la semaine.
 
-Il tourne gratuitement sur les serveurs de GitHub : rien à installer sur le
-téléphone, et l'ordinateur peut rester éteint.
-
----
-
-## Mise en route (2 minutes)
-
-### 1. Indiquer à qui envoyer l'alerte
-
-Dans le dépôt : **Settings** → **Secrets and variables** → **Actions** →
-onglet **Secrets** → **New repository secret** :
-
-| Nom       | Valeur                                                                 |
-|-----------|-------------------------------------------------------------------------|
-| `MAIL_TO` | l'adresse qui reçoit les alertes (plusieurs : séparer par des virgules) |
-
-C'est tout : le mail est envoyé par le service gratuit [ntfy.sh](https://ntfy.sh),
-sans compte ni mot de passe. L'adresse reste privée (un secret n'est jamais visible,
-même dans un dépôt public).
-
-### 2. Tester
-
-1. Onglet **Actions** → si GitHub le demande, cliquer pour activer les workflows.
-2. **Surveillance des séances** → **Run workflow** → mode `test` → **Run workflow**.
-3. Une minute plus tard, un mail « ✅ Alerte Aquanova : test » arrive, envoyé par ntfy.
-   - Pas de mail ? Regarder dans les **spams**, le marquer comme « non spam » et
-     ajouter l'expéditeur aux contacts.
-   - Une croix rouge dans l'onglet Actions : cliquer dessus pour voir l'erreur.
-
-La vérification tourne ensuite toute seule toutes les 30 minutes.
+Il tourne gratuitement sur les serveurs de GitHub : l'ordinateur peut rester éteint.
 
 ---
 
-## Option : envoyer depuis un compte Gmail
+## Sur le téléphone (1 minute)
 
-Plus fiable que ntfy (moins de risque de spam), mais plus long à configurer.
+1. Installer l'app gratuite **ntfy** (App Store ou Google Play).
+2. Toucher **+** (« S'abonner à un sujet »), garder le serveur `ntfy.sh` et taper
+   le nom du canal (communiqué à l'installation, de la forme `aquanova-xxxxxxxx…`).
+3. Autoriser les notifications quand l'app le demande.
 
-1. Créer une adresse Gmail dédiée, activer la **validation en deux étapes**
-   (https://myaccount.google.com/signinoptions/twosv), puis créer un
-   **mot de passe d'application** (https://myaccount.google.com/apppasswords).
-2. Ajouter deux secrets : `SMTP_USER` (l'adresse Gmail) et `SMTP_PASSWORD`
-   (le code de 16 lettres, sans espaces).
+Aucun compte n'est nécessaire.
 
-Dès que ces deux secrets existent, le programme passe par Gmail au lieu de ntfy.
+## Sur GitHub
+
+Le nom du canal est calculé à partir du secret `MAIL_TO` (onglet **Settings** →
+**Secrets and variables** → **Actions**). On peut aussi le choisir soi-même avec un
+secret `NTFY_TOPIC` : un nom long et difficile à deviner, car toute personne qui le
+connaît peut s'y abonner.
+
+### Tester
+
+**Actions** → **Surveillance des séances** → **Run workflow** → mode `test`.
+Une notification « ✅ Alerte Aquanova : test » arrive dans l'app ntfy.
+
+---
+
+## Option : recevoir aussi un mail (Gmail)
+
+Si les secrets `SMTP_USER` (adresse Gmail) et `SMTP_PASSWORD` (mot de passe
+d'application de 16 lettres, https://myaccount.google.com/apppasswords) existent, un
+mail est envoyé à `MAIL_TO` en plus de la notification. S'il échoue, la notification
+part quand même.
 
 ## Option : surveiller une semaine précise
 
@@ -59,13 +49,13 @@ Pour forcer une semaine : onglet **Variables** → `PERIODES` = le numéro aprè
 
 ## Bon à savoir
 
-- **Quand un mail est envoyé** : quand une semaine atteint 20 séances (quelques
+- **Quand une alerte est envoyée** : quand une semaine atteint 20 séances (quelques
   activités bien-être sont souvent publiées en avance ; le vrai planning en compte 60 à 70).
-  Le seuil se change avec la variable `SEUIL_PLANNING`. Chaque semaine ne déclenche qu'un seul mail, même si des séances y sont
+  Le seuil se change avec la variable `SEUIL_PLANNING`. Chaque semaine ne déclenche qu'une seule alerte, même si des séances y sont
   ajoutées ensuite. Les semaines déjà publiées au moment de l'installation ne
-  déclenchent pas de mail.
-- **Si le site change ou tombe en panne** plusieurs heures, un mail « ⚠️ Alerte
-  Aquanova en panne » est envoyé une seule fois.
+  déclenchent pas d'alerte.
+- **Si le site change ou tombe en panne** plusieurs heures, une alerte « ⚠️ Alerte
+  Aquanova en panne » est envoyée une seule fois.
 - **Délai** : GitHub peut décaler une vérification de quelques minutes aux heures chargées.
 - **Coût** : gratuit.
 - **Mettre en pause** : onglet Actions → Surveillance des séances → **⋯** → **Disable workflow**.

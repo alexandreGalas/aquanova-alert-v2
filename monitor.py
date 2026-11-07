@@ -1,10 +1,11 @@
-"""Surveille les pages de réservation d'Aquanova America et envoie un mail
+"""Surveille les pages de réservation d'Aquanova America et envoie une alerte
 quand le planning d'une nouvelle semaine est mis en ligne.
 
+L'alerte est une notification push envoyée par ntfy.sh (app gratuite ntfy).
+
 Configuration par variables d'environnement (voir README.md) :
-  MAIL_TO     -> obligatoire : adresse(s) qui reçoivent l'alerte
-  SMTP_USER, SMTP_PASSWORD -> facultatifs : si renseignés, le mail part de ce compte
-                 Gmail ; sinon il est envoyé par le service gratuit ntfy.sh
+  NTFY_TOPIC  -> nom du canal ntfy (facultatif : sinon dérivé de MAIL_TO)
+  MAIL_TO, SMTP_USER, SMTP_PASSWORD -> facultatifs : envoi d'un mail en plus via Gmail
   PERIODES    -> identifiants de semaines à surveiller, séparés par des virgules (optionnel)
   MODE        -> "normal" (défaut) ou "test" (envoie tout de suite un mail de test)
 
@@ -151,29 +152,35 @@ def destinataires() -> list[str]:
     return [d.strip() for d in os.environ.get("MAIL_TO", "").split(",") if d.strip()]
 
 
+def canal_ntfy() -> str:
+    """Nom du canal ntfy : secret NTFY_TOPIC, sinon dérivé de MAIL_TO (impossible à deviner)."""
+    if os.environ.get("NTFY_TOPIC", "").strip():
+        return os.environ["NTFY_TOPIC"].strip()
+    if destinataires():
+        return "aquanova-" + hashlib.sha256(destinataires()[0].lower().encode()).hexdigest()[:20]
+    raise SystemExit("Ni NTFY_TOPIC ni MAIL_TO : impossible de savoir où envoyer l'alerte.")
+
+
 def envoyer_mail(sujet: str, texte: str, html: str, lien: str) -> None:
-    if not destinataires():
-        raise SystemExit("Secret MAIL_TO manquant : impossible d'envoyer l'alerte.")
-    if os.environ.get("SMTP_USER") and os.environ.get("SMTP_PASSWORD"):
-        print("Envoi via Gmail…")
-        envoyer_par_smtp(sujet, texte, html)
-    else:
-        print("Secrets SMTP_USER / SMTP_PASSWORD absents : envoi via ntfy.sh…")
-        envoyer_par_ntfy(sujet, texte, lien)
+    """Envoie l'alerte en notification push (app ntfy), et aussi par mail si Gmail est configuré."""
+    envoyer_par_ntfy(sujet, texte, lien)
+    if destinataires() and os.environ.get("SMTP_USER") and os.environ.get("SMTP_PASSWORD"):
+        try:
+            envoyer_par_smtp(sujet, texte, html)
+        except Exception as e:  # le mail est un bonus : la notification est déjà partie
+            print(f"Mail Gmail non envoyé (la notification push, elle, est partie) : {e}")
 
 
 def envoyer_par_ntfy(sujet: str, texte: str, lien: str) -> None:
-    """Fait envoyer le mail par ntfy.sh : aucun compte ni mot de passe nécessaire.
-    Le nom du canal ntfy est dérivé de l'adresse, pour rester impossible à deviner."""
+    """Notification push via ntfy.sh : aucun compte ni mot de passe nécessaire."""
     serveur = os.environ.get("NTFY_SERVER", "https://ntfy.sh").rstrip("/")
-    for adresse in destinataires():
-        canal = "aquanova-" + hashlib.sha256(adresse.lower().encode()).hexdigest()[:20]
-        reponse = requests.post(serveur, timeout=30, json={
-            "topic": canal, "title": sujet, "message": texte, "click": lien, "email": adresse,
-        })
-        if reponse.status_code >= 400:
-            raise RuntimeError(f"ntfy a refusé l'envoi ({reponse.status_code}) : {reponse.text.strip()}")
-        print("Mail envoyé via ntfy.sh.")
+    reponse = requests.post(serveur, timeout=30, json={
+        "topic": canal_ntfy(), "title": sujet, "message": texte, "click": lien,
+        "tags": ["swimmer"], "priority": 4,
+    })
+    if reponse.status_code >= 400:
+        raise RuntimeError(f"ntfy a refusé l'envoi ({reponse.status_code}) : {reponse.text.strip()}")
+    print("Notification envoyée via ntfy.sh.")
 
 
 def envoyer_par_smtp(sujet: str, texte: str, html: str) -> None:
