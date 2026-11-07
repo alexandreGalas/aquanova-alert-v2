@@ -9,7 +9,9 @@ Configuration par variables d'environnement (voir README.md) :
   MODE        -> "normal" (défaut) ou "test" (envoie tout de suite un mail de test)
 
 Règle anti-doublon : une semaine est identifiée par son intitulé
-(« Du 30 novembre au 6 décembre 2026 »). Dès qu'elle contient au moins une séance,
+(« Du 30 novembre au 6 décembre 2026 »). Dès qu'elle contient au moins SEUIL_PLANNING
+séances (quelques activités bien-être sont souvent publiées en avance, le vrai
+planning en compte 60 à 70),
 un mail est envoyé et la semaine est notée dans etat.json : elle ne déclenchera
 plus jamais de mail, même si des séances y sont ajoutées ensuite.
 """
@@ -38,6 +40,7 @@ FICHIER_ETAT = Path(os.environ.get("STATE_FILE", "etat.json"))
 MAX_PAGES = 10          # nombre maximum de semaines lues à chaque vérification
 PAUSE_ENTRE_PAGES = 2   # secondes, pour ne pas charger le site
 JOURS_DE_MEMOIRE = 90   # on oublie les semaines signalées il y a plus de 90 jours
+SEUIL_PLANNING = int(os.environ.get("SEUIL_PLANNING") or 20)  # séances pour dire « planning publié »
 ECHECS_AVANT_ALERTE = 6 # 6 vérifications ratées d'affilée (~3 h) avant de prévenir
 
 ENTETES = {
@@ -206,7 +209,7 @@ def main() -> int:
     nouvelles = []
     for page in pages:
         print(f"{page['semaine']} : {page['nb_seances']} séance(s)")
-        if page["nb_seances"] > 0 and page["semaine"] not in etat["semaines"]:
+        if page["nb_seances"] >= SEUIL_PLANNING and page["semaine"] not in etat["semaines"]:
             etat["semaines"][page["semaine"]] = aujourdhui
             nouvelles.append(page)
 

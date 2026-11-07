@@ -40,6 +40,7 @@ jobs:
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           MAIL_TO: ${{ secrets.MAIL_TO }}
           PERIODES: ${{ vars.PERIODES }}
+          SEUIL_PLANNING: ${{ vars.SEUIL_PLANNING }}
 
       - name: Mémoriser les séances déjà vues
         run: |

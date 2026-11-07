@@ -59,8 +59,9 @@ Pour forcer une semaine : onglet **Variables** → `PERIODES` = le numéro aprè
 
 ## Bon à savoir
 
-- **Quand un mail est envoyé** : quand une semaine passe de « vide » à « au moins une
-  séance ». Chaque semaine ne déclenche qu'un seul mail, même si des séances y sont
+- **Quand un mail est envoyé** : quand une semaine atteint 20 séances (quelques
+  activités bien-être sont souvent publiées en avance ; le vrai planning en compte 60 à 70).
+  Le seuil se change avec la variable `SEUIL_PLANNING`. Chaque semaine ne déclenche qu'un seul mail, même si des séances y sont
   ajoutées ensuite. Les semaines déjà publiées au moment de l'installation ne
   déclenchent pas de mail.
 - **Si le site change ou tombe en panne** plusieurs heures, un mail « ⚠️ Alerte
