@@ -177,7 +177,12 @@ def envoyer_par_ntfy(sujet: str, texte: str, lien: str) -> None:
 
 
 def envoyer_par_smtp(sujet: str, texte: str, html: str) -> None:
-    utilisateur = os.environ["SMTP_USER"]
+    utilisateur = os.environ["SMTP_USER"].strip()
+    # Un mot de passe d'application est souvent copié avec des espaces ("abcd efgh ijkl mnop").
+    mot_de_passe = "".join(os.environ["SMTP_PASSWORD"].split())
+    if not re.fullmatch(r"[a-zA-Z]{16}", mot_de_passe):
+        print(f"Attention : SMTP_PASSWORD fait {len(mot_de_passe)} caractères ; un mot de passe "
+              "d'application Gmail fait 16 lettres. Vérifier qu'il ne s'agit pas du mot de passe du compte.")
     msg = EmailMessage()
     msg["Subject"] = sujet
     msg["From"] = f"Alerte Aquanova <{utilisateur}>"
@@ -185,10 +190,33 @@ def envoyer_par_smtp(sujet: str, texte: str, html: str) -> None:
     msg.set_content(texte)
     msg.add_alternative(html, subtype="html")
     hote = os.environ.get("SMTP_HOST", "smtp.gmail.com")
-    port = int(os.environ.get("SMTP_PORT", "465"))
-    with smtplib.SMTP_SSL(hote, port, timeout=30) as serveur:
-        serveur.login(utilisateur, os.environ["SMTP_PASSWORD"])
-        serveur.send_message(msg)
+    derniere_erreur: Exception | None = None
+    for port in (465, 587):  # SSL direct, puis STARTTLS
+        try:
+            if port == 465:
+                serveur = smtplib.SMTP_SSL(hote, port, timeout=30)
+            else:
+                serveur = smtplib.SMTP(hote, port, timeout=30)
+                serveur.starttls()
+            with serveur:
+                serveur.login(utilisateur, mot_de_passe)
+                serveur.send_message(msg)
+            print(f"Mail envoyé via Gmail (port {port}).")
+            return
+        except smtplib.SMTPAuthenticationError as e:
+            raise RuntimeError(
+                "Gmail refuse l'identifiant ou le mot de passe. SMTP_USER doit être l'adresse Gmail "
+                "complète et SMTP_PASSWORD le mot de passe d'application de 16 lettres "
+                f"(https://myaccount.google.com/apppasswords). Réponse de Gmail : {e.smtp_error!r}"
+            ) from e
+        except (smtplib.SMTPException, OSError) as e:
+            print(f"Échec de connexion à Gmail sur le port {port} : {e!r}")
+            derniere_erreur = e
+    raise RuntimeError(
+        "Gmail a coupé la connexion. Causes probables : mot de passe d'application incorrect, "
+        "ou connexion bloquée par Google (regarder dans la boîte du compte d'envoi s'il y a une "
+        "alerte de sécurité et confirmer que c'est bien toi)."
+    ) from derniere_erreur
 
 
 def mail_simple(sujet: str, lignes: list[tuple[str, str]]) -> None:
