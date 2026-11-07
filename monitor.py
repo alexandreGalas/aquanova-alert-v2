@@ -47,7 +47,9 @@ ENTETES = {
 
 RE_JOUR = re.compile(r"^(LUNDI|MARDI|MERCREDI|JEUDI|VENDREDI|SAMEDI|DIMANCHE)\s+\d{1,2}/\d{1,2}")
 RE_SEMAINE = re.compile(r"Du\s+\d{1,2}(?:\s+\w+)?(?:\s+\d{4})?\s+au\s+\d{1,2}\s+\w+\s+\d{4}")
-RE_PERIODE = re.compile(r"periode[\"'=:\s]+[\"']?(\d{4,9})")
+# Identifiants de semaines cités dans la page : liens "periode=…" et flèches
+# « semaine suivante » du type onclick='update_link_periodes(341055)'.
+RE_PERIODE = re.compile(r"periode[\"'=:\s]+[\"']?(\d{4,9})|update_link_periodes\(\s*['\"]?(\d{4,9})")
 
 
 class ErreurStructure(Exception):
@@ -87,7 +89,7 @@ def analyser_page(html: str) -> dict:
     if jours_vus == 0:
         raise ErreurStructure("aucun jour (LUNDI, MARDI…) trouvé sur la page")
 
-    return {"semaine": semaine, "nb_seances": nb_seances, "periodes": set(RE_PERIODE.findall(html))}
+    return {"semaine": semaine, "nb_seances": nb_seances, "periodes": {a or b for a, b in RE_PERIODE.findall(html)}}
 
 
 def collecter(periodes_config: list[str]) -> list[dict]:
