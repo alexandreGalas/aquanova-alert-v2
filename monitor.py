@@ -2,7 +2,9 @@
 quand le planning d'une nouvelle semaine est mis en ligne.
 
 Configuration par variables d'environnement (voir README.md) :
-  SMTP_USER, SMTP_PASSWORD, MAIL_TO   -> obligatoires pour l'envoi du mail
+  MAIL_TO     -> obligatoire : adresse(s) qui reçoivent l'alerte
+  SMTP_USER, SMTP_PASSWORD -> facultatifs : si renseignés, le mail part de ce compte
+                 Gmail ; sinon il est envoyé par le service gratuit ntfy.sh
   PERIODES    -> identifiants de semaines à surveiller, séparés par des virgules (optionnel)
   MODE        -> "normal" (défaut) ou "test" (envoie tout de suite un mail de test)
 
@@ -14,6 +16,7 @@ plus jamais de mail, même si des séances y sont ajoutées ensuite.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -123,13 +126,39 @@ def sauver_etat(etat: dict) -> None:
 
 # --------------------------------------------------------------------------- mail
 
-def envoyer_mail(sujet: str, texte: str, html: str) -> None:
+def destinataires() -> list[str]:
+    return [d.strip() for d in os.environ.get("MAIL_TO", "").split(",") if d.strip()]
+
+
+def envoyer_mail(sujet: str, texte: str, html: str, lien: str) -> None:
+    if not destinataires():
+        raise SystemExit("Secret MAIL_TO manquant : impossible d'envoyer l'alerte.")
+    if os.environ.get("SMTP_USER") and os.environ.get("SMTP_PASSWORD"):
+        envoyer_par_smtp(sujet, texte, html)
+    else:
+        envoyer_par_ntfy(sujet, texte, lien)
+
+
+def envoyer_par_ntfy(sujet: str, texte: str, lien: str) -> None:
+    """Fait envoyer le mail par ntfy.sh : aucun compte ni mot de passe nécessaire.
+    Le nom du canal ntfy est dérivé de l'adresse, pour rester impossible à deviner."""
+    serveur = os.environ.get("NTFY_SERVER", "https://ntfy.sh").rstrip("/")
+    for adresse in destinataires():
+        canal = "aquanova-" + hashlib.sha256(adresse.lower().encode()).hexdigest()[:20]
+        reponse = requests.post(serveur, timeout=30, json={
+            "topic": canal, "title": sujet, "message": texte, "click": lien, "email": adresse,
+        })
+        if reponse.status_code >= 400:
+            raise RuntimeError(f"ntfy a refusé l'envoi ({reponse.status_code}) : {reponse.text.strip()}")
+        print("Mail envoyé via ntfy.sh.")
+
+
+def envoyer_par_smtp(sujet: str, texte: str, html: str) -> None:
     utilisateur = os.environ["SMTP_USER"]
-    destinataires = [d.strip() for d in os.environ["MAIL_TO"].split(",") if d.strip()]
     msg = EmailMessage()
     msg["Subject"] = sujet
     msg["From"] = f"Alerte Aquanova <{utilisateur}>"
-    msg["To"] = ", ".join(destinataires)
+    msg["To"] = ", ".join(destinataires())
     msg.set_content(texte)
     msg.add_alternative(html, subtype="html")
     hote = os.environ.get("SMTP_HOST", "smtp.gmail.com")
@@ -144,7 +173,7 @@ def mail_simple(sujet: str, lignes: list[tuple[str, str]]) -> None:
     texte = "\n".join(f"{t}\n{l}" for t, l in lignes)
     html = "".join(f"<p style='font-family:Arial,sans-serif;font-size:15px'>"
                    f"<a href='{escape(l)}'>{escape(t)}</a></p>" for t, l in lignes)
-    envoyer_mail(sujet, texte, html)
+    envoyer_mail(sujet, texte, html, lignes[0][1])
 
 
 # --------------------------------------------------------------------------- principal
